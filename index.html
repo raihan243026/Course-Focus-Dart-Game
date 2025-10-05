@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Course Focus Dart Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Bebas+Neue&display=swap');
+
+        :root {
+            --board-dark: #2c1a16; /* Deep wood */
+            --board-light: #f5e6c7; /* Cream/White */
+            --ring-green: #0a6b0a; /* Darker Green */
+            --ring-red: #9e0000; /* Darker Red */
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1f2833 0%, #000000 100%);
+            color: #ecf0f1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        h1 {
+            font-family: 'Bebas Neue', cursive;
+            letter-spacing: 3px;
+            text-shadow: 0 4px 6px rgba(192, 57, 43, 0.7);
+        }
+
+        #gameContainer {
+            background: rgba(44, 62, 80, 0.85);
+            backdrop-filter: blur(5px);
+            border: 3px solid #3498db;
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.8), inset 0 0 10px rgba(255, 255, 255, 0.1);
+            width: 98%;
+            max-width: 1200px; /* Increased max width for desktop view */
+            /* Tailwind classes manage flex/grid layout now */
+        }
+
+        #dartboardContainer {
+            position: relative;
+            /* W-full on mobile, fixed max width on larger screens */
+            width: 100%; 
+            max-width: 500px;
+            aspect-ratio: 1 / 1;
+            padding: 10px;
+            background: #1f2a37;
+            border-radius: 50%;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.9), 0 0 40px rgba(52, 152, 219, 0.5);
+            margin: 0 auto; /* Center on mobile */
+        }
+        /* Override canvas size in JS, but ensure it's block */
+        #dartboard {
+            display: block;
+            border-radius: 50%;
+            cursor: crosshair;
+            background: #4a3c3c; 
+            box-shadow: 0 0 100px rgba(0, 0, 0, 0.9) inset;
+        }
+
+        .score-box {
+            background: linear-gradient(145deg, #2c3e50, #1f2a37);
+            border: 2px solid #3b82f6;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        #totalScore {
+            transition: color 0.3s ease-in-out;
+        }
+
+        #resultDisplay {
+            font-family: 'Bebas Neue', cursive;
+            letter-spacing: 1px;
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            min-height: 70px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .control-panel {
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-button {
+            flex-grow: 1;
+            font-weight: bold;
+            padding: 12px 20px;
+            border-radius: 8px;
+            transition: transform 0.1s, box-shadow 0.1s;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem; /* Slightly smaller for mobile usability */
+        }
+
+        .action-button:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        #pauseButton {
+            background-color: #f39c12;
+            color: #1f2a37;
+        }
+
+        #pauseButton.active {
+            background-color: #2ecc71;
+        }
+
+        #resetButton {
+            background-color: #e74c3c;
+            color: white;
+        }
+        
+    </style>
+</head>
+<body>
+
+    <h1 class="text-4xl sm:text-6xl mt-4 mb-8 text-white text-center">Focus Dart Master</h1>
+
+    <!-- Responsive Layout using Tailwind -->
+    <div id="gameContainer" class="flex flex-col lg:flex-row lg:justify-center lg:items-start lg:gap-10">
+        
+        <!-- Dartboard Container (Order 1 on all screens) -->
+        <div id="dartboardContainer" class="order-1 mb-8 lg:mb-0">
+            <!-- Dartboard Canvas -->
+            <canvas id="dartboard" width="500" height="500"></canvas>
+        </div>
+
+        <!-- Score/Info Column (Order 2, stacked vertically) -->
+        <div class="flex flex-col gap-6 order-2 w-full lg:max-w-md">
+            
+            <!-- Score and Controls -->
+            <div class="score-box space-y-4">
+                <h2 class="text-2xl font-bold text-yellow-300">Total Score</h2>
+                <p id="totalScore" class="text-6xl text-green-400 font-extrabold transition duration-300">0</p>
+                
+                <p class="text-sm text-gray-400">Aim for the Triple Rings (3x) to boost your course focus score!</p>
+
+                <div id="resultDisplay" class="bg-gray-800 text-yellow-200">
+                    <span class="text-xl">Game Ready!</span>
+                </div>
+
+                <div class="control-panel">
+                    <button id="pauseButton" class="action-button active" onclick="toggleRotation()">
+                        <span id="pauseText">PAUSE AIM</span> 🎯
+                    </button>
+                    <button id="resetButton" class="action-button" onclick="resetGame()">
+                        RESET SCORE 🔄
+                    </button>
+                </div>
+            </div>
+
+            <!-- Instructions and Course Info -->
+            <div class="score-box">
+                <h3 class="text-xl font-bold text-blue-300 mb-2">Course Targets & Multipliers</h3>
+                <ul id="courseList" class="text-sm list-none pl-0 space-y-2">
+                    <!-- List populated by JavaScript -->
+                </ul>
+                <p class="mt-3 text-xs text-gray-500">
+                    **Triple Ring (3x)**, **Double Ring (2x)**, Outer/Inner Single (1x). **Bullseye 50/25!**
+                </p>
+            </div>
+            
+        </div>
+
+    </div>
+
+    <script type="module">
+        // --- Dartboard Game Logic and Drawing ---
+
+        const canvas = document.getElementById('dartboard');
+        const ctx = canvas.getContext('2d');
+        const totalScoreElement = document.getElementById('totalScore');
+        const resultDisplayElement = document.getElementById('resultDisplay');
+        const courseListElement = document.getElementById('courseList');
+        const pauseButton = document.getElementById('pauseButton');
+        const pauseText = document.getElementById('pauseText');
+
+        let totalScore = 0;
+        let boardRadius;
+        let center = {};
+        
+        // Rotation variables
+        let rotationAngle = 0;
+        let rotationSpeed = 0.005; // Base rotation speed (radians per frame)
+        let isRotating = true;
+        let animationFrameId = null;
+        
+        // Track the last 10 darts hit markers (x, y, color)
+        let dartMarkers = [];
+        const MAX_MARKERS = 10; // Tracks the last 10 darts
+
+        // Define your courses and their colors. 
+        const COURSES = [
+            { name: "CHEMISTRY", color: "#9e0000", order: 1 },
+            { name: "GEED", color: "#0a6b0a", order: 2 },
+            { name: "DSA", color: "#9e0000", order: 3 },
+            { name: "STARTING SIGNAL", color: "#0a6b0a", order: 4 },
+            { name: "D MATH", color: "#9e0000", order: 5 },
+            { name: "MATH-3", color: "#0a6b0a", order: 6 },
+            { name: "SIGNAL", color: "#3498db", order: 7 }, // The requested SIGNAL course
+        ];
+
+        // Standard dartboard point sequence 
+        const POINT_SEQUENCE = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
+
+        // Create the sequence of 20 segments
+        let segmentCourses = [];
+        for (let i = 0; i < 20; i++) {
+            const courseIndex = i % COURSES.length; 
+            const course = COURSES[courseIndex];
+            segmentCourses.push({
+                ...course,
+                segmentPoints: POINT_SEQUENCE[i]
+            });
+        }
+        
+        // Ring Ratios (percentage of radius)
+        const RING_RATIOS = {
+            OUTER_EDGE: 1,
+            DOUBLE_RING_OUTER: 0.96,
+            DOUBLE_RING_INNER: 0.88,
+            TRIPLE_RING_OUTER: 0.53,
+            TRIPLE_RING_INNER: 0.45,
+            INNER_SINGLE_INNER: 0.08, 
+            BULL_OUTER: 0.04, 
+        };
+
+        // Initialize canvas size and center (responsive)
+        function initializeCanvas() {
+            const container = document.getElementById('dartboardContainer');
+            // Get the width of the container, minus padding, and ensure it doesn't exceed its max width
+            const size = Math.min(container.offsetWidth - 20, 500); 
+            canvas.width = size;
+            canvas.height = size;
+            boardRadius = size / 2;
+            center.x = boardRadius;
+            center.y = boardRadius;
+            drawBoard(); // Redraw immediately on resize/init
+        }
+
+        // Draw the entire dartboard
+        function drawBoard() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(center.x, center.y);
+            
+            // Apply current rotation
+            ctx.rotate(rotationAngle);
+
+            // Draw segments
+            const segmentAngle = Math.PI * 2 / 20;
+            const startAngleOffset = -Math.PI / 20 - (Math.PI / 2); // Start 20 centered at the top
+
+            for (let i = 0; i < 20; i++) {
+                const startAngle = startAngleOffset + i * segmentAngle;
+                const endAngle = startAngle + segmentAngle;
+                const courseData = segmentCourses[i];
+                
+                // Color cycle for the singles area (alternating dark/light wood)
+                const colorOuterSingle = (i % 2 === 0) ? 'var(--board-dark)' : 'var(--board-light)';
+                const colorInnerSingle = (i % 2 !== 0) ? 'var(--board-dark)' : 'var(--board-light)';
+
+                // 1. Draw Outer Single Ring
+                ctx.fillStyle = colorOuterSingle;
+                drawArcSegment(startAngle, endAngle, RING_RATIOS.DOUBLE_RING_INNER * boardRadius, RING_RATIOS.TRIPLE_RING_OUTER * boardRadius);
+
+                // 2. Draw Triple Ring (Course Color)
+                ctx.fillStyle = courseData.color; 
+                drawArcSegment(startAngle, endAngle, RING_RATIOS.TRIPLE_RING_OUTER * boardRadius, RING_RATIOS.TRIPLE_RING_INNER * boardRadius);
+
+                // 3. Draw Inner Single Ring
+                ctx.fillStyle = colorInnerSingle;
+                drawArcSegment(startAngle, endAngle, RING_RATIOS.TRIPLE_RING_INNER * boardRadius, RING_RATIOS.INNER_SINGLE_INNER * boardRadius);
+
+                // 4. Draw Double Ring (Course Color)
+                ctx.fillStyle = courseData.color; 
+                drawArcSegment(startAngle, endAngle, RING_RATIOS.DOUBLE_RING_OUTER * boardRadius, RING_RATIOS.DOUBLE_RING_INNER * boardRadius);
+                
+                // 5. Draw Course Names (centered in the Outer Single area)
+                const textRadius = (RING_RATIOS.TRIPLE_RING_OUTER + RING_RATIOS.DOUBLE_RING_INNER) / 2 * boardRadius;
+                const textAngle = startAngle + segmentAngle / 2;
+                drawRotatedText(
+                    courseData.name, 
+                    textAngle, 
+                    textRadius,
+                    15 // font size
+                );
+            }
+
+            // Draw center rings
+            // Outer Bull (25 points)
+            ctx.fillStyle = 'var(--ring-green)';
+            ctx.beginPath();
+            ctx.arc(0, 0, RING_RATIOS.INNER_SINGLE_INNER * boardRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Inner Bull (50 points)
+            ctx.fillStyle = 'var(--ring-red)';
+            ctx.beginPath();
+            ctx.arc(0, 0, RING_RATIOS.BULL_OUTER * boardRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw all separating lines and circles (wireframe)
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 1.5;
+            
+            // Draw ring circles (metal wires)
+            [RING_RATIOS.DOUBLE_RING_OUTER, RING_RATIOS.DOUBLE_RING_INNER, RING_RATIOS.TRIPLE_RING_OUTER, RING_RATIOS.TRIPLE_RING_INNER, RING_RATIOS.INNER_SINGLE_INNER, RING_RATIOS.BULL_OUTER].forEach(ratio => {
+                ctx.beginPath();
+                ctx.arc(0, 0, ratio * boardRadius, 0, Math.PI * 2);
+                ctx.stroke();
+            });
+
+            // Segment dividing lines
+            for (let i = 0; i < 20; i++) {
+                const angle = startAngleOffset + i * segmentAngle;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(Math.cos(angle) * boardRadius, Math.sin(angle) * boardRadius);
+                ctx.stroke();
+            }
+            
+            // --- Draw Dart Markers (Last 10) ---
+            dartMarkers.forEach(marker => {
+                ctx.fillStyle = marker.color;
+                ctx.beginPath();
+                
+                const r = Math.sqrt(marker.dx * marker.dx + marker.dy * marker.dy);
+                let markerAngle = Math.atan2(marker.dy, marker.dx) - rotationAngle; 
+
+                const rotatedX = r * Math.cos(markerAngle);
+                const rotatedY = r * Math.sin(markerAngle);
+
+                ctx.arc(rotatedX, rotatedY, boardRadius * 0.015, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw a small dart-like crosshair
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(rotatedX - 5, rotatedY);
+                ctx.lineTo(rotatedX + 5, rotatedY);
+                ctx.moveTo(rotatedX, rotatedY - 5);
+                ctx.lineTo(rotatedX, rotatedY + 5);
+                ctx.stroke();
+            });
+            
+            ctx.restore();
+        }
+
+        // Helper function to draw an arc segment
+        function drawArcSegment(startAngle, endAngle, innerRadius, outerRadius) {
+            ctx.beginPath();
+            ctx.arc(0, 0, outerRadius, startAngle, endAngle);
+            ctx.lineTo(Math.cos(endAngle) * innerRadius, Math.sin(endAngle) * innerRadius);
+            ctx.arc(0, 0, innerRadius, endAngle, startAngle, true);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // Helper function to draw text radially
+        function drawRotatedText(text, angle, radius, fontSize) {
+            ctx.save();
+            ctx.rotate(angle);
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            // Scale font size based on board size for responsiveness
+            ctx.font = `${fontSize * (boardRadius / 250)}px 'Bebas Neue', sans-serif`; 
+            ctx.fillStyle = '#000000';
+            ctx.fillText(text, 0, -radius);
+            ctx.restore();
+        }
+
+        // --- Animation Loop ---
+        function animate() {
+            if (isRotating) {
+                rotationAngle += rotationSpeed;
+                if (rotationAngle > Math.PI * 2) {
+                    rotationAngle -= Math.PI * 2;
+                }
+            }
+            drawBoard();
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        // Helper function to determine hit score
+        function getHitScore(x, y) {
+            const dx = x - center.x;
+            const dy = y - center.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // Outside the board
+            if (distance > boardRadius) {
+                return { course: "MISSED BOARD", multiplier: 0, score: 0, total: 0, markerColor: 'rgba(255, 0, 0, 0.8)' };
+            }
+
+            // Calculate angle and normalize 
+            let angle = Math.atan2(dy, dx); 
+            if (angle < 0) {
+                angle += 2 * Math.PI;
+            }
+            
+            // Adjust the angle to compensate for the board's rotation!
+            let effectiveAngle = angle - rotationAngle;
+            if (effectiveAngle < 0) {
+                effectiveAngle += 2 * Math.PI;
+            }
+
+            const segmentAngle = Math.PI * 2 / 20;
+            const startAngleOffset = -Math.PI / 20 - (Math.PI / 2); // Drawing offset
+
+            // Adjust angle relative to the first segment's starting line (unrotated)
+            let relativeAngle = effectiveAngle - startAngleOffset;
+            if (relativeAngle < 0) {
+                relativeAngle += Math.PI * 2;
+            }
+            
+            // Determine segment index
+            const segmentIndex = Math.floor(relativeAngle / segmentAngle) % 20;
+            const hitSegment = segmentCourses[segmentIndex];
+
+            let multiplier = 0;
+            let area = "Single";
+            let markerColor = 'rgba(255, 255, 255, 0.9)';
+
+            const r = distance / boardRadius; // Normalized distance (0 to 1)
+
+            // Determine ring multiplier based on normalized radius (r)
+            if (r <= RING_RATIOS.BULL_OUTER) {
+                multiplier = 50; 
+                area = "INNER BULLSEYE (50)";
+                markerColor = 'rgba(0, 255, 0, 0.9)';
+            } else if (r <= RING_RATIOS.INNER_SINGLE_INNER) {
+                multiplier = 25; 
+                area = "OUTER BULL (25)";
+                markerColor = 'rgba(0, 255, 0, 0.6)';
+            } else if (r <= RING_RATIOS.TRIPLE_RING_INNER) {
+                multiplier = 1; 
+                area = "Inner Single";
+            } else if (r <= RING_RATIOS.TRIPLE_RING_OUTER) {
+                multiplier = 3; 
+                area = "TRIPLE RING";
+                markerColor = 'rgba(255, 223, 0, 0.9)'; 
+            } else if (r <= RING_RATIOS.DOUBLE_RING_INNER) {
+                multiplier = 1; 
+                area = "Outer Single";
+            } else if (r <= RING_RATIOS.DOUBLE_RING_OUTER) {
+                multiplier = 2; 
+                area = "DOUBLE RING";
+                markerColor = 'rgba(255, 223, 0, 0.6)'; 
+            } else {
+                multiplier = 1; 
+                area = "Outer Single";
+            }
+            
+            let baseScore = hitSegment.segmentPoints;
+            let score = 0;
+            
+            // Calculate final score
+            if (area.includes("BULL")) {
+                score = (multiplier === 50) ? 50 : 25;
+            } else {
+                score = baseScore * multiplier;
+            }
+
+            return {
+                course: hitSegment.name.toUpperCase(),
+                multiplier: multiplier,
+                score: score,
+                area: area,
+                total: score,
+                markerColor: markerColor,
+                // Store relative coordinates for drawing
+                dx: dx,
+                dy: dy
+            };
+        }
+
+        // Event handler for throwing a dart
+        canvas.addEventListener('click', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            const hit = getHitScore(x, y);
+
+            if (hit.score > 0) {
+                totalScore += hit.score;
+                // Add marker if it's a valid hit (not a miss)
+                dartMarkers.push({ dx: hit.dx, dy: hit.dy, color: hit.markerColor });
+                
+                // Keep only the last MAX_MARKERS (10)
+                if (dartMarkers.length > MAX_MARKERS) {
+                    dartMarkers.shift();
+                }
+            }
+            
+            updateDisplay(hit);
+            // Redrawing is handled by the animation loop
+        });
+
+        // Toggle rotation pause/play
+        window.toggleRotation = function() {
+            isRotating = !isRotating;
+            if (isRotating) {
+                pauseButton.classList.add('active');
+                pauseButton.style.backgroundColor = '#f39c12';
+                pauseText.textContent = "PAUSE AIM";
+            } else {
+                pauseButton.classList.remove('active');
+                pauseButton.style.backgroundColor = '#2ecc71';
+                pauseText.textContent = "RESUME SPIN";
+            }
+            if (!isRotating) {
+                drawBoard();
+            }
+        }
+
+        // Update score display
+        function updateDisplay(hit) {
+            totalScoreElement.textContent = totalScore;
+            totalScoreElement.style.color = hit.score > 0 ? '#10b981' : '#f97316';
+            
+            if (hit.score === 0) {
+                resultDisplayElement.innerHTML = `<span class="text-xl font-bold text-red-400">MISS!</span> (${hit.course})`;
+                resultDisplayElement.className = "bg-red-900 text-white font-bold p-2 rounded-lg shadow-inner";
+            } else if (hit.area.includes("BULL")) {
+                resultDisplayElement.innerHTML = `<span class="text-2xl font-bold text-green-300">${hit.area}</span><br>+${hit.total} on ${hit.course}`;
+                resultDisplayElement.className = "bg-green-900 text-white font-bold p-2 rounded-lg shadow-inner";
+            } else if (hit.multiplier > 1) {
+                resultDisplayElement.innerHTML = `<span class="text-2xl font-bold text-yellow-300">${hit.area} (${hit.multiplier}X)</span><br>+${hit.total} on ${hit.course}`;
+                resultDisplayElement.className = "bg-yellow-900 text-gray-900 font-bold p-2 rounded-lg shadow-inner";
+            } else {
+                resultDisplayElement.innerHTML = `<span class="text-xl font-bold text-gray-300">${hit.area} (1X)</span><br>+${hit.total} on ${hit.course}`;
+                resultDisplayElement.className = "bg-gray-700 text-white font-bold p-2 rounded-lg shadow-inner";
+            }
+        }
+
+        // Reset the game
+        window.resetGame = function() {
+            totalScore = 0;
+            dartMarkers = [];
+            totalScoreElement.textContent = '0';
+            totalScoreElement.style.color = '#10b981';
+            resultDisplayElement.innerHTML = '<span class="text-xl">Game Reset. Throw your first dart!</span>';
+            resultDisplayElement.className = "bg-gray-800 text-yellow-200 font-bold p-2 rounded-lg shadow-inner";
+            
+            if (!isRotating) {
+                drawBoard();
+            }
+        }
+
+        // Populate the course list and initialize
+        function setupGame() {
+            // Filtering to show unique courses
+            const uniqueCourses = [];
+            const seenNames = new Set();
+            segmentCourses.forEach(seg => {
+                if (!seenNames.has(seg.name)) {
+                    // Find the highest point value associated with this course
+                    const basePoints = segmentCourses
+                        .filter(s => s.name === seg.name)
+                        .map(s => s.segmentPoints)
+                        .sort((a, b) => b - a); 
+
+                    uniqueCourses.push({ ...seg, highestPoints: basePoints[0] });
+                    seenNames.add(seg.name);
+                }
+            });
+
+            courseListElement.innerHTML = uniqueCourses.map(course => `
+                <li class="flex justify-between items-center text-base">
+                    <span class="font-semibold" style="color: ${course.color};">${course.name}</span>
+                    <span class="text-lg font-extrabold text-blue-300">${course.highestPoints}</span>
+                </li>
+            `).join('');
+
+
+            // Initial setup
+            initializeCanvas();
+            window.addEventListener('resize', initializeCanvas);
+            
+            // Start the animation loop
+            animate();
+            resetGame();
+        }
+        
+        // Start the game setup when the window loads
+        window.onload = setupGame;
+
+    </script>
+
+</body>
+</html>
